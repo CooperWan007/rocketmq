@@ -44,4 +44,16 @@ public class NameServerInstanceTest {
         }
         //maybe need to clean the file store. But we do not suggest deleting anything.
     }
+
+    public static void main(String[] args) throws Exception{
+        NettyServerConfig nettyServerConfig = new NettyServerConfig();
+        nettyServerConfig.setListenPort(9876);
+        NamesrvConfig namesrvConfig = new NamesrvConfig();
+        NamesrvController namesrvController = new NamesrvController(namesrvConfig, nettyServerConfig);
+
+        boolean initialize = namesrvController.initialize();
+        if (initialize){
+            namesrvController.start();
+        }
+    }
 }
