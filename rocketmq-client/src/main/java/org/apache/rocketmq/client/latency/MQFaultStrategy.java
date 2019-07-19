@@ -24,11 +24,25 @@ import org.slf4j.Logger;
 
 public class MQFaultStrategy {
     private final static Logger log = ClientLogger.getLog();
+
+    /**
+     * 延迟故障容错，维护每个broker的发送消息的延迟
+     * key： broker的Name
+     */
     private final LatencyFaultTolerance<String> latencyFaultTolerance = new LatencyFaultToleranceImpl();
 
+    /**
+     * 延迟容错开关
+     */
     private boolean sendLatencyFaultEnable = false;
 
+    /**
+     * 延迟级别数组
+     */
     private long[] latencyMax = {50L, 100L, 550L, 1000L, 2000L, 3000L, 15000L};
+    /**
+     * 不可用数组长度
+     */
     private long[] notAvailableDuration = {0L, 0L, 30000L, 60000L, 120000L, 180000L, 600000L};
 
     public long[] getNotAvailableDuration() {
@@ -55,9 +69,16 @@ public class MQFaultStrategy {
         this.sendLatencyFaultEnable = sendLatencyFaultEnable;
     }
 
+    /**
+     * 根据topic发布消息，选择一个消息队列
+     * @param tpInfo
+     * @param lastBrokerName
+     * @return
+     */
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
         if (this.sendLatencyFaultEnable) {
             try {
+                // 获取brokerName=lastBrokerName && 可用的一个消息队列
                 int index = tpInfo.getSendWhichQueue().getAndIncrement();
                 for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
                     int pos = Math.abs(index++) % tpInfo.getMessageQueueList().size();
@@ -70,6 +91,7 @@ public class MQFaultStrategy {
                     }
                 }
 
+                // 消息队列
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
                 int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);
                 if (writeQueueNums > 0) {
@@ -88,7 +110,7 @@ public class MQFaultStrategy {
 
             return tpInfo.selectOneMessageQueue();
         }
-
+        // 获得 lastBrokerName 对应的一个消息队列，不考虑该队列的可用性, 未开启容错策略的情况
         return tpInfo.selectOneMessageQueue(lastBrokerName);
     }
 
