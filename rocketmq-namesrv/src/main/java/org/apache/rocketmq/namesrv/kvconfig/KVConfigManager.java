@@ -45,6 +45,7 @@ public class KVConfigManager {
     public void load() {
         String content = null;
         try {
+            // File: kvConfig.json
             content = MixAll.file2String(this.namesrvController.getNamesrvConfig().getKvConfigPath());
         } catch (IOException e) {
             log.warn("Load KV config table exception", e);

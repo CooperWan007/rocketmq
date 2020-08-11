@@ -45,6 +45,7 @@ public class NamesrvConfig {
     }
 
     public String getRocketmqHome() {
+        this.rocketmqHome = "/Users/cooper/Documents/study/source_analysis/rocketmq";
         return rocketmqHome;
     }
 

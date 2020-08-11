@@ -56,15 +56,20 @@ public class NamesrvController {
     private Configuration configuration;
 
     public NamesrvController(NamesrvConfig namesrvConfig, NettyServerConfig nettyServerConfig) {
+        //nameserv参数配置
         this.namesrvConfig = namesrvConfig;
+        //netty的参数配置
         this.nettyServerConfig = nettyServerConfig;
         this.kvConfigManager = new KVConfigManager(this);
+        //初始化RouteInfoManager
         this.routeInfoManager = new RouteInfoManager();
+        //监听客户端连接(Channel)的变化，通知RouteInfoManager检查broker是否有变化
         this.brokerHousekeepingService = new BrokerHousekeepingService(this);
         this.configuration = new Configuration(
             log,
             this.namesrvConfig, this.nettyServerConfig
         );
+        //Nameserv的配置参数会保存到磁盘文件中
         this.configuration.setStorePathFromConfig(this.namesrvConfig, "configStorePath");
     }
 

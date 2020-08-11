@@ -29,6 +29,9 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 对应commitLog目录的路径
+ */
 public class MappedFileQueue {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     private static final Logger LOG_ERROR = LoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
@@ -37,12 +40,15 @@ public class MappedFileQueue {
 
     private final String storePath;
 
+    // 单个文件大小，默认1G
     private final int mappedFileSize;
 
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
 
+    // 创建MappedFile文件
     private final AllocateMappedFileService allocateMappedFileService;
 
+    // 指针，插入数据时用
     private long flushedWhere = 0;
     private long committedWhere = 0;
 

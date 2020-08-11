@@ -62,31 +62,40 @@ import static org.apache.rocketmq.store.config.BrokerRole.SLAVE;
 
 public class DefaultMessageStore implements MessageStore {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
-
+    // 消息配置属性
     private final MessageStoreConfig messageStoreConfig;
-    // CommitLog
+    // CommitLog 文件存储实现类
     private final CommitLog commitLog;
-
+    // 消息队列存储缓存，按照消息topic分组
     private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
-
+    // 消息队列文件刷盘线程
     private final FlushConsumeQueueService flushConsumeQueueService;
 
+    //CommitLog 清除文件服务
     private final CleanCommitLogService cleanCommitLogService;
 
+    // 清除consumerQueue队列文件
     private final CleanConsumeQueueService cleanConsumeQueueService;
 
+    // 索引实现类 索引文件服务
     private final IndexService indexService;
 
+    // MappedFile实现类
     private final AllocateMappedFileService allocateMappedFileService;
 
+    // commitLog消息分发，根据commitLog文件构建ConsumerQueue、IndexFile文件
     private final ReputMessageService reputMessageService;
 
+    // 存储HA服务
     private final HAService haService;
 
+    // 消息服务调度线程
     private final ScheduleMessageService scheduleMessageService;
 
+    // 消息存储服务
     private final StoreStatsService storeStatsService;
 
+    // 堆外内存缓存池
     private final TransientStorePool transientStorePool;
 
     private final RunningFlags runningFlags = new RunningFlags();
@@ -95,11 +104,14 @@ public class DefaultMessageStore implements MessageStore {
     private final ScheduledExecutorService scheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("StoreScheduledThread"));
     private final BrokerStatsManager brokerStatsManager;
+    // 消息拉取长轮询模式  消息监听器
     private final MessageArrivingListener messageArrivingListener;
+
     private final BrokerConfig brokerConfig;
 
     private volatile boolean shutdown = true;
 
+    // 文件刷盘的检查点
     private StoreCheckpoint storeCheckpoint;
 
     private AtomicLong printTimes = new AtomicLong(0);
@@ -209,6 +221,7 @@ public class DefaultMessageStore implements MessageStore {
      */
     public void start() throws Exception {
 
+        //1、写lock 文件,尝试获取lock文件锁，保证磁盘上的文件只会被一个messageStore读写
         lock = lockFile.getChannel().tryLock(0, 1, false);
         if (lock == null || lock.isShared() || !lock.isValid()) {
             throw new RuntimeException("Lock failed,MQ already started");
@@ -217,14 +230,21 @@ public class DefaultMessageStore implements MessageStore {
         lockFile.getChannel().write(ByteBuffer.wrap("lock".getBytes()));
         lockFile.getChannel().force(true);
 
+        //2、启动FlushConsumeQueueService，是一个单线程的服务，定时将consumeQueue文件的数据刷新到磁盘，周期由参数flushIntervalConsumeQueue设置，默认1sec
         this.flushConsumeQueueService.start();
+
+        //3、启动CommitLog
         this.commitLog.start();
+
+        //4、消息存储指标统计服务，RT，TPS...
         this.storeStatsService.start();
 
+        //5、针对master，启动延时消息调度服务
         if (this.scheduleMessageService != null && SLAVE != messageStoreConfig.getBrokerRole()) {
             this.scheduleMessageService.start();
         }
 
+        //6、启动reputMessageService，该服务负责将CommitLog中的消息offset记录到consumerQueue文件中
         if (this.getMessageStoreConfig().isDuplicationEnable()) {
             this.reputMessageService.setReputFromOffset(this.commitLog.getConfirmOffset());
         } else {
@@ -232,10 +252,14 @@ public class DefaultMessageStore implements MessageStore {
         }
         this.reputMessageService.start();
 
+        //7、启动haService，数据主从同步的服务
         this.haService.start();
 
+        //8、对于新的broker，初始化文件存储的目录
         this.createTempFile();
+        //9、启动定时任务
         this.addScheduleTask();
+
         this.shutdown = false;
     }
 
@@ -313,7 +337,6 @@ public class DefaultMessageStore implements MessageStore {
             if ((value % 50000) == 0) {
                 log.warn("message store is slave mode, so putMessage is forbidden ");
             }
-
             return new PutMessageResult(PutMessageStatus.SERVICE_NOT_AVAILABLE, null);
         }
 

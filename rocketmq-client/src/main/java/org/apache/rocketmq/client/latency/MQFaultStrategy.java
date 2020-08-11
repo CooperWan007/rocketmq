@@ -32,7 +32,7 @@ public class MQFaultStrategy {
     private final LatencyFaultTolerance<String> latencyFaultTolerance = new LatencyFaultToleranceImpl();
 
     /**
-     * 延迟容错开关
+     * 延迟容错开关 broker的故障延迟
      */
     private boolean sendLatencyFaultEnable = false;
 

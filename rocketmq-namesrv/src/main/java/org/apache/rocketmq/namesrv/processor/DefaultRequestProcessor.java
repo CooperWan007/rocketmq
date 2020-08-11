@@ -191,6 +191,7 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
 
         RegisterBrokerBody registerBrokerBody = new RegisterBrokerBody();
 
+        //decode request body，如果body已压缩，则先解压。如果body为空，会将topic的版本号默认置为0
         if (request.getBody() != null) {
             registerBrokerBody = RegisterBrokerBody.decode(request.getBody(), RegisterBrokerBody.class);
         } else {
@@ -198,6 +199,7 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
             registerBrokerBody.getTopicConfigSerializeWrapper().getDataVersion().setTimestamp(0);
         }
 
+        // 使用broker上报的信息更新nameserv的RouteInfo
         RegisterBrokerResult result = this.namesrvController.getRouteInfoManager().registerBroker(
             requestHeader.getClusterName(),
             requestHeader.getBrokerAddr(),
@@ -208,9 +210,11 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
             registerBrokerBody.getFilterServerList(),
             ctx.channel());
 
+        //如果broker是slave的话，会将master address和ha server address通过response返回给broker
         responseHeader.setHaServerAddr(result.getHaServerAddr());
         responseHeader.setMasterAddr(result.getMasterAddr());
 
+        //将Order topic的KV配置信息通过response返回
         byte[] jsonValue = this.namesrvController.getKvConfigManager().getKVListByNamespace(NamesrvUtil.NAMESPACE_ORDER_TOPIC_CONFIG);
         response.setBody(jsonValue);
 

@@ -48,6 +48,7 @@ public class NamesrvStartup {
 
     public static NamesrvController main0(String[] args) {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
+        System.setProperty(MixAll.ROCKETMQ_HOME_PROPERTY, "/Users/cooper/Documents/study/source_analysis/rocketmq");
         try {
             Options options = ServerUtil.buildCommandlineOptions(new Options());
             commandLine = ServerUtil.parseCmdLine("mqnamesrv", args, buildCommandlineOptions(options), new PosixParser());
@@ -55,8 +56,9 @@ public class NamesrvStartup {
                 System.exit(-1);
                 return null;
             }
-
+            // 创建NameSrv的配置信息(包含路径等)
             final NamesrvConfig namesrvConfig = new NamesrvConfig();
+            // 创建netty的服务器配置信息，
             final NettyServerConfig nettyServerConfig = new NettyServerConfig();
             nettyServerConfig.setListenPort(9876);
             if (commandLine.hasOption('c')) {
@@ -88,13 +90,15 @@ public class NamesrvStartup {
                 System.exit(-2);
             }
 
+            // 配置日志信息
             LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
             JoranConfigurator configurator = new JoranConfigurator();
             configurator.setContext(lc);
             lc.reset();
             configurator.doConfigure(namesrvConfig.getRocketmqHome() + "/conf/logback_namesrv.xml");
-            final Logger log = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
+
+            final Logger log = LoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
             MixAll.printObjectProperties(log, namesrvConfig);
             MixAll.printObjectProperties(log, nettyServerConfig);
 
@@ -103,12 +107,13 @@ public class NamesrvStartup {
             // remember all configs to prevent discard
             controller.getConfiguration().registerConfig(properties);
 
+            // 调用controller的初始化方法，进行nameSrv的初始化工作
             boolean initResult = controller.initialize();
             if (!initResult) {
                 controller.shutdown();
                 System.exit(-3);
             }
-
+            // 注册销毁事件
             Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
@@ -117,6 +122,7 @@ public class NamesrvStartup {
                 }
             }));
 
+            // 启动controller
             controller.start();
 
             String tip = "The Name Server boot success. serializeType=" + RemotingCommand.getSerializeTypeConfigInThisServer();
