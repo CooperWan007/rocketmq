@@ -43,6 +43,11 @@ import org.apache.rocketmq.store.config.StorePathConfigHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 如果消息失败，broker会延时重发。
+ * 对于延时重发消息（topic= SCHEDULE_TOPIC_XXXX），
+ * 这个服务负责检查是否有消息到了发送时间，到了时间则从延时队列中取出后重新发送
+ */
 public class ScheduleMessageService extends ConfigManager {
     private static final Logger log = LoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 

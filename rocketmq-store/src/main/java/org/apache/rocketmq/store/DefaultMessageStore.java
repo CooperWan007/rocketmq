@@ -1193,6 +1193,7 @@ public class DefaultMessageStore implements MessageStore {
 
     private void addScheduleTask() {
 
+//        定时清理过期的commitLog、consumerQueue和Index数据文件, 默认文件写满后会保存72小时
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
@@ -1200,6 +1201,7 @@ public class DefaultMessageStore implements MessageStore {
             }
         }, 1000 * 60, this.messageStoreConfig.getCleanResourceInterval(), TimeUnit.MILLISECONDS);
 
+        //定时自检commitLog和consumerQueue文件，校验文件是否完整。主要用于监控，不会做修复文件的动作。
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
@@ -1207,6 +1209,7 @@ public class DefaultMessageStore implements MessageStore {
             }
         }, 1, 10, TimeUnit.MINUTES);
 
+        // 定时检查commitLog的Lock时长(因为在write或者flush时侯会lock)，如果lock的时间过长，则打印jvm堆栈，用于监控。
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {

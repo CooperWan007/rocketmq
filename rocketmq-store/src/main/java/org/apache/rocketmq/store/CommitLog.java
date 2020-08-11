@@ -94,9 +94,12 @@ public class CommitLog {
     }
 
     public void start() {
+        //加载刷盘服务
         this.flushCommitLogService.start();
 
+        //storePool flush
         if (defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
+            // 在使用内存池的时候，这个服务会定时将内存池中的数据刷新到FileChannel中，
             this.commitLogService.start();
         }
     }
