@@ -202,16 +202,31 @@ public class MappedFile extends ReferenceResource {
         assert messageExt != null;
         assert cb != null;
 
+        //1、获取当前的write position
         int currentPos = this.wrotePosition.get();
 
         if (currentPos < this.fileSize) {
+            //2、生成buffer切片
+            /*
+             * 获取ByteBuffer，可以发现有个判断，这里是因为MappedFile写数据到文件有两种实现方式：
+             *
+             * 1. 从FileChannel获取直接内存映射，收到消息后，将数据写入到这块内存中，内存和物理文件的数据交互由操作系统负责
+             *
+             * 2. CommitLog启动的时候初始化一块内存池(通过ByteBuffer申请的堆外内存)，消息数据首先写入内存池中，
+             * 然后后台有个线程定时将内存池中的数据commit到FileChannel中。
+             * 这种方式只有MessageStore是ASYNC模式时才能开启。代码中if判断writeBuffer不为空的情况就是使用的这种写入方式。
+             */
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
             byteBuffer.position(currentPos);
-            AppendMessageResult result = null;
+            AppendMessageResult result;
             if (messageExt instanceof MessageExtBrokerInner) {
+                //3、写单条消息到byteBuffer
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
+
             } else if (messageExt instanceof MessageExtBatch) {
+                //3、批量消息到byteBuffer
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBatch) messageExt);
+
             } else {
                 return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
             }
