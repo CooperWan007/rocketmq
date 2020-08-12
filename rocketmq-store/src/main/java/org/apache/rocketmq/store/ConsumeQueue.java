@@ -376,11 +376,21 @@ public class ConsumeQueue {
     }
 
     public void putMessagePositionInfoWrapper(DispatchRequest request) {
+        //1、写入重试次数，最多30次
         final int maxRetries = 30;
+        //2、判断CQ是否是可写的
         boolean canWrite = this.defaultMessageStore.getRunningFlags().isCQWriteable();
+
         for (int i = 0; i < maxRetries && canWrite; i++) {
             long tagsCode = request.getTagsCode();
             if (isExtWriteEnable()) {
+                //3、如果需要写ext文件，则将消息的tagsCode写入
+                /**
+                 * 如果需要写ext文件，
+                 * 则将消息的tagsCode写入这个是一个过滤的扩展功能，
+                 * 采用的bloom过滤器先记录消息的bitMap，
+                 * 这样consumer来读取消息时先通过bloom过滤器判断是否有符合过滤条件的消息
+                 */
                 ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
                 cqExtUnit.setFilterBitMap(request.getBitMap());
                 cqExtUnit.setMsgStoreTime(request.getStoreTimestamp());
@@ -394,9 +404,12 @@ public class ConsumeQueue {
                         topic, queueId, request.getCommitLogOffset());
                 }
             }
+            //4、写入文件
             boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(),
                 request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
+
             if (result) {
+                //5、记录check point
                 this.defaultMessageStore.getStoreCheckpoint().setLogicsMsgTimestamp(request.getStoreTimestamp());
                 return;
             } else {
@@ -430,11 +443,14 @@ public class ConsumeQueue {
         this.byteBufferIndex.putInt(size);
         this.byteBufferIndex.putLong(tagsCode);
 
+        // logicOffset等于cqOffset + 20
         final long expectLogicOffset = cqOffset * CQ_STORE_UNIT_SIZE;
 
+        //获取最后一个MappedFile 没有就创建
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile(expectLogicOffset);
         if (mappedFile != null) {
 
+            //对新创建的文件，将所有CQUnit初始化0值
             if (mappedFile.isFirstCreateInQueue() && cqOffset != 0 && mappedFile.getWrotePosition() == 0) {
                 this.minLogicOffset = expectLogicOffset;
                 this.mappedFileQueue.setFlushedWhere(expectLogicOffset);
@@ -465,6 +481,7 @@ public class ConsumeQueue {
                 }
             }
             this.maxPhysicOffset = offset;
+            //CQUnit写入文件中
             return mappedFile.appendMessage(this.byteBufferIndex.array());
         }
         return false;

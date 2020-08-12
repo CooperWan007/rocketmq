@@ -1767,10 +1767,13 @@ public class DefaultMessageStore implements MessageStore {
         }
 
         private boolean isCommitLogAvailable() {
+            // 判断commitLog的maxOffset是否比上次读取的offset大 是否有新的数据
             return this.reputFromOffset < DefaultMessageStore.this.commitLog.getMaxOffset();
         }
 
         private void doReput() {
+
+            //1、判断commitLog的maxOffset是否比上次读取的offset大
             for (boolean doNext = true; this.isCommitLogAvailable() && doNext; ) {
 
                 if (DefaultMessageStore.this.getMessageStoreConfig().isDuplicationEnable()
@@ -1778,20 +1781,25 @@ public class DefaultMessageStore implements MessageStore {
                     break;
                 }
 
+                //2、从上次的结束offset开始读取commitLog文件中的消息
                 SelectMappedBufferResult result = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
                 if (result != null) {
                     try {
                         this.reputFromOffset = result.getStartOffset();
 
                         for (int readSize = 0; readSize < result.getSize() && doNext; ) {
+
+                            //3、检查message数据完整性并封装成DispatchRequest
                             DispatchRequest dispatchRequest =
                                 DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(result.getByteBuffer(), false, false);
                             int size = dispatchRequest.getMsgSize();
 
                             if (dispatchRequest.isSuccess()) {
                                 if (size > 0) {
+                                    //4、分发消息到CommitLogDispatcher，1)构建索引; 2)更新consumeQueue
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
+                                    //5、分发消息到MessageArrivingListener,唤醒等待的PullRequest接收消息, Only Master?
                                     if (BrokerRole.SLAVE != DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole()
                                         && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()) {
                                         DefaultMessageStore.this.messageArrivingListener.arriving(dispatchRequest.getTopic(),
@@ -1800,6 +1808,7 @@ public class DefaultMessageStore implements MessageStore {
                                             dispatchRequest.getBitMap(), dispatchRequest.getPropertiesMap());
                                     }
 
+                                    //5、更新offset
                                     this.reputFromOffset += size;
                                     readSize += size;
                                     if (DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE) {
@@ -1810,11 +1819,12 @@ public class DefaultMessageStore implements MessageStore {
                                             .addAndGet(dispatchRequest.getMsgSize());
                                     }
                                 } else if (size == 0) {
+                                    //6、如果读到文件结尾，则切换到新文件
                                     this.reputFromOffset = DefaultMessageStore.this.commitLog.rollNextFile(this.reputFromOffset);
                                     readSize = result.getSize();
                                 }
                             } else if (!dispatchRequest.isSuccess()) {
-
+                                //7、解析消息出错，跳过。commitLog文件中消息数据损坏的情况下才会进来
                                 if (size > 0) {
                                     log.error("[BUG]read total count not equals msg total size. reputFromOffset={}", reputFromOffset);
                                     this.reputFromOffset += size;
@@ -1830,6 +1840,7 @@ public class DefaultMessageStore implements MessageStore {
                             }
                         }
                     } finally {
+                        //8、release对MappedFile的引用
                         result.release();
                     }
                 } else {
